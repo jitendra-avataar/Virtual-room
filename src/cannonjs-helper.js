@@ -1,0 +1,4 @@
+const mod = () => {
+  initWorld: () => {};
+  addBody: () => {};
+};
