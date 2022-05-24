@@ -90,11 +90,22 @@ function addScene() {
 //     ThreeHelper.addDragGroup(parent);
 //   }
 // });
+let lastCoords = null;
 const dragControl = ThreeHelper.getDragControl();
 dragControl.addEventListener("drag", (event) => {
-  for (let i = 0; i < modelDragGroups.length; i++) {
-    if (event.object.uuid === modelDragGroups[i].uuid) {
-      modelBodies[i].position.copy(event.object.position);
+  if (room) {
+    if (lastCoords == null) {
+      lastCoords = event.object.position;
+    }
+    if (ThreeHelper.getBox(room).containsBox(ThreeHelper.getBox(event.object))) {
+      for (let i = 0; i < modelDragGroups.length; i++) {
+        if (event.object.uuid === modelDragGroups[i].uuid) {
+          modelBodies[i].position.copy(event.object.position);
+          lastCoords = event.object.position;
+        }
+      }
+    } else {
+      event.object.position.set(...lastCoords);
     }
   }
 });
