@@ -8,7 +8,7 @@ import CannonDebugger from "cannon-es-debugger";
 
 let splide,
   gui = new dat.GUI(),
-  objectsToAdd = ["bed", "sofa"],
+  objectsToAdd = ["sofa", "bed", "Table", "Light"],
   room,
   modelBoxHelpers = [],
   modelCenters = [];
@@ -143,6 +143,10 @@ window.addEventListener("dblclick", (evt) => {
     rotationFolder.add(parent.rotation, "x", 0, 2 * Math.PI, 0.01);
     rotationFolder.add(parent.rotation, "y", 0, 2 * Math.PI, 0.01);
     rotationFolder.add(parent.rotation, "z", 0, 2 * Math.PI, 0.01);
+
+    let positionFolder = objectFolder.addFolder("position");
+    positionFolder.add(parent.position, "x", 0, 5, 0.1);
+    positionFolder.add(parent.position, "z", 0, 5, 0.1);
 
     let scaleFolder = objectFolder.addFolder("scale");
     scaleFolder.add(parent.scale, "x", 0, 5, 0.1);
