@@ -5,7 +5,10 @@ import ThreeHelper from "./threejs-helper";
 import * as dat from "lil-gui";
 import CannonHelper from "./cannonjs-helper";
 import CannonDebugger from "cannon-es-debugger";
-
+import * as THREE from "three";
+import * as CANNON from "cannon-es";
+import { threeToCannon, ShapeType } from "three-to-cannon";
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 let splide,
   gui = new dat.GUI(),
   objectsToAdd = ["bed", "sofa"],
@@ -30,6 +33,7 @@ const groundMaterial = CannonHelper.getGroundMaterial();
 const modelDragGroups = [],
   models = [],
   modelBodies = [];
+let data = { nodes: {}, materials: {} };
 
 ThreeHelper.loadObject("room.glb")
   .then((gltf) => {
@@ -45,8 +49,16 @@ function addScene() {
   el.style.display = "block";
 
   splide.on("click", (evt) => {
+    let shapes = [];
     ThreeHelper.loadObject(`${objectsToAdd[evt.index]}.glb`)
       .then((gltf) => {
+        gltf.scene.traverse((obj) => {
+          if (obj instanceof THREE.Mesh && !(obj.name.match(/Arrows/gi) || obj.name.match(/Numbers/i))) {
+            console.log("position", obj.geometry.uuid);
+            const geometery = obj.geometry.clone();
+            shapes.push(new CANNON.Trimesh(geometery.attributes.position.array, geometery.getIndex().array));
+          }
+        });
         const object = gltf.scene;
         let objectBox = ThreeHelper.getBox(object);
         modelCenters.push(objectBox.getCenter(ThreeHelper.getVector3(0, 0, 0)));
@@ -58,8 +70,13 @@ function addScene() {
         // const modelBoxHelper = ThreeHelper.getBoxHelper(object);
         // modelBoxHelpers.push(modelBoxHelper);
         // scene.add(modelBoxHelper);
+        const body = new CANNON.Body({ mass: 1, position: { x: 0, y: 2, z: 0 }, material: groundMaterial });
+        for (let i = 0; i < shapes.length; i++) {
+          body.addShape(shapes[i]);
+        }
+        world.addBody(body);
 
-        const body = CannonHelper.addBody(1, groundMaterial, ThreeHelper.getDimesions(object), { x: 0, y: 2, z: 0 });
+        // const body = CannonHelper.addBody(1, groundMaterial, ThreeHelper.getDimesions(object), { x: 0, y: 2, z: 0 });
 
         body.fixedRotation = true;
         body.updateMassProperties();
@@ -115,7 +132,7 @@ const loop = () => {
   const elapsedTime = clock.getElapsedTime();
   const deltaTime = elapsedTime - oldElapsedTime;
   oldElapsedTime = elapsedTime;
-  world.step(1 / 60, deltaTime, 3);
+  world.fixedStep();
   renderer.render(scene, camera);
 
   for (let i = 0; i < models.length; i++) {
@@ -125,7 +142,7 @@ const loop = () => {
     modelDragGroups[i].quaternion.copy(models[i].quaternion);
     modelDragGroups[i].scale.copy(models[i].scale);
   }
-  // cannonDebugger.update();
+  cannonDebugger.update();
 
   window.requestAnimationFrame(loop);
 };

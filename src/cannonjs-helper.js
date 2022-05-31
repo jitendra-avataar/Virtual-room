@@ -1,4 +1,4 @@
-import CANNON from "cannon";
+import * as CANNON from "cannon-es";
 
 const mod = () => {
   let world, groundMaterial, groundGroundContact, gravity, groundBody;
