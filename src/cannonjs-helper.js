@@ -4,6 +4,8 @@ const mod = () => {
   let world, groundMaterial, groundGroundContact, gravity, groundBody;
   const initWorld = () => {
     world = new CANNON.World();
+    world.broadphase = new CANNON.NaiveBroadphase();
+
     world.gravity.set(0, -9.81, 0);
     groundMaterial = new CANNON.Material("ground");
     groundGroundContact = new CANNON.ContactMaterial(groundMaterial, groundMaterial, {
@@ -20,7 +22,7 @@ const mod = () => {
       position,
       material,
     });
-    world.add(body);
+    world.addBody(body);
     return body;
   };
   const addGroundBody = () => {

@@ -7,11 +7,15 @@ import CannonHelper from "./cannonjs-helper";
 import CannonDebugger from "cannon-es-debugger";
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
-import { threeToCannon, ShapeType } from "three-to-cannon";
+
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { ConvexHull } from "three/examples/jsm/math/ConvexHull";
+import { QuickHull } from "./quick-hull";
+import { Geometry } from "three/examples/jsm/deprecated/Geometry";
+
 let splide,
   gui = new dat.GUI(),
-  objectsToAdd = ["bed", "sofa"],
+  objectsToAdd = ["monkey", "monkey"],
   room,
   modelBoxHelpers = [],
   modelCenters = [];
@@ -50,16 +54,25 @@ function addScene() {
 
   splide.on("click", (evt) => {
     let shapes = [];
+
     ThreeHelper.loadObject(`${objectsToAdd[evt.index]}.glb`)
       .then((gltf) => {
-        gltf.scene.traverse((obj) => {
-          if (obj instanceof THREE.Mesh && !(obj.name.match(/Arrows/gi) || obj.name.match(/Numbers/i))) {
-            console.log("position", obj.geometry.uuid);
-            const geometery = obj.geometry.clone();
-            shapes.push(new CANNON.Trimesh(geometery.attributes.position.array, geometery.getIndex().array));
+        let monkeyMesh, monkeyCollisionMesh;
+        gltf.scene.traverse((child) => {
+          console.log(child.name);
+          if (child.name === "Suzanne") {
+            monkeyMesh = child;
+          } else if (child.name.startsWith("physics")) {
+            monkeyCollisionMesh = child;
+            shapes.push(createConvexPolyhedron(monkeyCollisionMesh.geometry));
           }
+          // if (child.isMesh && !(child.name.match("Arrow") || child.name.match("Number"))) {
+          //   shapes.push(createConvexPolyhedron(child.geometry));
+          // }
         });
-        const object = gltf.scene;
+        // const object = gltf.scene;
+        const object = monkeyMesh;
+        // shapes.push(createConvexPolyhedron(monkeyMesh.geometry));
         let objectBox = ThreeHelper.getBox(object);
         modelCenters.push(objectBox.getCenter(ThreeHelper.getVector3(0, 0, 0)));
         room.attach(object);
@@ -67,11 +80,14 @@ function addScene() {
         const transparentBox = ThreeHelper.addTransparentBox(ThreeHelper.getDimesions(object));
         scene.add(transparentBox);
 
-        // const modelBoxHelper = ThreeHelper.getBoxHelper(object);
-        // modelBoxHelpers.push(modelBoxHelper);
-        // scene.add(modelBoxHelper);
+        const modelBoxHelper = ThreeHelper.getBoxHelper(transparentBox);
+        modelBoxHelpers.push(modelBoxHelper);
+        scene.add(modelBoxHelper);
+
         const body = new CANNON.Body({ mass: 1, position: { x: 0, y: 2, z: 0 }, material: groundMaterial });
+        console.log("shape", shapes);
         for (let i = 0; i < shapes.length; i++) {
+          console.log("adding shape");
           body.addShape(shapes[i]);
         }
         world.addBody(body);
@@ -132,15 +148,20 @@ const loop = () => {
   const elapsedTime = clock.getElapsedTime();
   const deltaTime = elapsedTime - oldElapsedTime;
   oldElapsedTime = elapsedTime;
+  // world.step(1 / 60, deltaTime, 3);
   world.fixedStep();
   renderer.render(scene, camera);
 
   for (let i = 0; i < models.length; i++) {
-    modelDragGroups[i].position.copy({ ...modelBodies[i].position });
-    models[i].position.copy({ y: modelDragGroups[i].position.y - modelCenters[i].y, x: modelDragGroups[i].position.x - modelCenters[i].x, z: modelDragGroups[i].position.z - modelCenters[i].z });
-    models[i].quaternion.copy(models[i].quaternion);
-    modelDragGroups[i].quaternion.copy(models[i].quaternion);
-    modelDragGroups[i].scale.copy(models[i].scale);
+    // modelDragGroups[i].position.copy({ ...modelBodies[i].position });
+    models[i].position.copy({ y: modelBodies[i].position.y, x: modelBodies[i].position.x - modelCenters[i].x, z: modelBodies[i].position.z - modelCenters[i].z });
+    modelDragGroups[i].position.copy({ ...models[i].position, y: models[i].position.y + modelCenters[i].y });
+
+    // models[i].quaternion.copy(models[i].quaternion);
+    // modelDragGroups[i].quaternion.copy(models[i].quaternion);
+
+    // modelDragGroups[i].scale.copy(models[i].scale);
+    modelBoxHelpers[i].update();
   }
   cannonDebugger.update();
 
@@ -178,3 +199,62 @@ window.addEventListener("dblclick", (evt) => {
     scaleFolder.add(parent.scale, "z", 0, 5, 0.1);
   }
 });
+function getPolyhedronShape(obj) {
+  const convexHull = new ConvexHull().setFromObject(obj);
+  const faces = convexHull.faces;
+  const cannonFaces = [];
+  const vertices = [];
+  const normals = [];
+  for (let i = 0; i < faces.length; i++) {
+    let face = faces[i];
+    let cannonFace = [];
+    let edge = face.edge;
+    do {
+      let point = edge.head().point;
+      let vec3 = new CANNON.Vec3(point.x, point.y, point.z);
+      vertices.push(vec3);
+      cannonFace.push(vertices.indexOf(vec3));
+      edge = edge.next;
+    } while (edge !== face.edge);
+    cannonFaces.push(cannonFace);
+  }
+  return new CANNON.ConvexPolyhedron({ vertices: vertices, faces: cannonFaces });
+}
+
+function createFromIndexed(mesh) {
+  let geometry = mesh.geometry;
+  geometry.deleteAttribute("normal");
+  //if not planning on putting textures on the mesh, you can delete the uv mapping for better vertice merging
+  geometry.deleteAttribute("uv");
+  geometry = BufferGeometryUtils.mergeVertices(geometry);
+  mesh.geometry = geometry;
+  let position = geometry.attributes.position.array;
+  let geomFaces = geometry.index.array;
+  const points = [];
+  const faces = [];
+  for (var i = 0; i < position.length; i += 3) {
+    points.push(new CANNON.Vec3(position[i], position[i + 1], position[i + 2]));
+  }
+  for (var i = 0; i < geomFaces.length; i += 3) {
+    faces.push([geomFaces[i], geomFaces[i + 1], geomFaces[i + 2]]);
+  }
+  return new CANNON.ConvexPolyhedron(points, faces);
+}
+function createConvexPolyhedron(geometry) {
+  if (!geometry.vertices) {
+    geometry = new Geometry().fromBufferGeometry(geometry);
+    geometry.mergeVertices();
+    geometry.computeBoundingSphere();
+    geometry.computeFaceNormals();
+  }
+  const points = geometry.vertices.map(function (v) {
+    return new CANNON.Vec3(v.x, v.y, v.z);
+  });
+  const faces = geometry.faces.map(function (f) {
+    return [f.a, f.b, f.c];
+  });
+
+  console.log(faces, "facesss", points);
+
+  return new CANNON.ConvexPolyhedron({ vertices: points, faces });
+}
