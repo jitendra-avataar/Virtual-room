@@ -1,4 +1,7 @@
 import * as Ammo from "ammo.js";
+import { AmmoDebugDrawer, AmmoDebugConstants, DefaultBufferSize } from "ammo-debug-drawer";
+import * as THREE from "three";
+import ThreeHelper from "./threejs-helper";
 
 const mod = () => {
   let collisionConfiguration,
@@ -10,7 +13,6 @@ const mod = () => {
     tempBtVec3,
     transformAux,
     ammo;
-
   function initAmmo() {
     return new Promise((resolve, reject) => {
       Ammo().then((AmmoLib) => {
@@ -30,6 +32,7 @@ const mod = () => {
     physicsWorld.setGravity(ammo.btVector3(0, gravityConstant, 0));
     transformAux = ammo.btTransform();
     tempBtVec3 = ammo.btVector3(0, 0, 0);
+    // initDebug();
   }
   function createRigidbody(object, physicsShape, mass, pos, quat, vel, angVel) {
     if (pos) {
@@ -43,7 +46,7 @@ const mod = () => {
       quat = object.quaternion;
     }
 
-    const transform = new ammo.transform();
+    const transform = new ammo.btTransform();
     transform.setIdentity();
     transform.setOrigin(new ammo.btVector3(pos.x, pos.y, pos.z));
     transform.setRotation(new ammo.btQuaternion(quat.x, quat.y, quat.z));
@@ -68,8 +71,6 @@ const mod = () => {
     object.userData.physicsBody = body;
     object.userData.collided = false;
 
-    scene.add(object);
-
     physicsWorld.addRigidBody(body);
     return body;
   }
@@ -87,7 +88,7 @@ const mod = () => {
   }
 
   function addGround(shape, dimension, pos, quat) {
-    const transform = new ammo.transform();
+    const transform = new ammo.btTransform();
     transform.setIdentity();
     transform.setOrigin(new ammo.btVector3(pos.x, pos.y, pos.z));
     transform.setRotation(new ammo.btQuaternion(quat.x, quat.y, quat.z));
@@ -100,13 +101,31 @@ const mod = () => {
     const rbInfo = new ammo.btRigidBodyConstructionInfo(0, motionState, shape, localInertia);
     new ammo.btRigidBody(rbInfo);
   }
+  function initDebug(scene) {
+    var debugVertices = new Float32Array(DefaultBufferSize);
+    var debugColors = new Float32Array(DefaultBufferSize);
+    let debugGeometry = new THREE.BufferGeometry();
+    debugGeometry.setAttribute("position", new THREE.BufferAttribute(debugVertices, 3).setUsage(true));
+    debugGeometry.setAttribute("color", new THREE.BufferAttribute(debugColors, 3).setUsage(true));
+    var debugMaterial = new THREE.LineBasicMaterial({ vertexColors: THREE.VertexColors });
+    var debugMesh = new THREE.LineSegments(debugGeometry, debugMaterial);
+    debugMesh.frustumCulled = false;
+    scene.add(debugMesh);
+    let debugDrawer = new AmmoDebugDrawer(null, debugVertices, debugColors, physicsWorld);
+    debugDrawer.enable();
 
+    setInterval(() => {
+      var mode = (debugDrawer.getDebugMode() + 1) % 3;
+      debugDrawer.setDebugMode(mode);
+    }, 1000);
+  }
   return {
     initAmmo,
     initPhysics,
     createRigidbody,
     createConvexHullPhysicsShape,
     addGround,
+    initDebug,
   };
 };
 const AmmoHelper = mod();
