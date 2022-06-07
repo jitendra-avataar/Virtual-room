@@ -6,7 +6,7 @@ const mod = () => {
     broadphase,
     solver,
     physicsWorld,
-    gravityConstant = -9.8,
+    gravityConstant = 9.8,
     tempBtVec3,
     transformAux,
     ammo;
@@ -27,9 +27,11 @@ const mod = () => {
     solver = new ammo.btSequentialImpulseConstraintSolver();
     physicsWorld = new ammo.btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
 
-    physicsWorld.setGravity(ammo.btVector3(0, gravityConstant, 0));
-    transformAux = ammo.btTransform();
-    tempBtVec3 = ammo.btVector3(0, 0, 0);
+    physicsWorld.setGravity(new ammo.btVector3(0, -gravityConstant, 0));
+    transformAux = new ammo.btTransform();
+    tempBtVec3 = new ammo.btVector3(0, 0, 0);
+    // initDebug();
+    return physicsWorld;
   }
   function createRigidbody(object, physicsShape, mass, pos, quat, vel, angVel) {
     if (pos) {
@@ -67,25 +69,25 @@ const mod = () => {
 
     object.userData.physicsBody = body;
     object.userData.collided = false;
-
-    scene.add(object);
-
+    if (mass > 0) {
+      console.log("setting activation state");
+      body.setActivationState(4);
+    }
     physicsWorld.addRigidBody(body);
     return body;
   }
 
-  function createConvexHullPhysicsShape(coords) {
-    const shape = new Ammo.btConvexHullShape();
+  function createConvexHullPhysicsShape(vertexes) {
+    const shape = new ammo.btConvexHullShape();
 
-    for (let i = 0, il = coords.length; i < il; i += 3) {
-      tempBtVec3_1.setValue(coords[i], coords[i + 1], coords[i + 2]);
-      const lastOne = i >= il - 3;
+    for (let i = 0, il = vertexes.length; i < il; i++) {
+      tempBtVec3_1.setValue();
+      const lastOne = i >= il;
       shape.addPoint(tempBtVec3_1, lastOne);
     }
 
     return shape;
   }
-
   function addGround(shape, dimension, pos, quat) {
     const transform = new ammo.transform();
     transform.setIdentity();
@@ -98,7 +100,8 @@ const mod = () => {
     shape.calculateLocalInertia(0, localInertia);
 
     const rbInfo = new ammo.btRigidBodyConstructionInfo(0, motionState, shape, localInertia);
-    new ammo.btRigidBody(rbInfo);
+    const body = new ammo.btRigidBody(rbInfo);
+    physicsWorld.addRigidBody(body);
   }
 
   return {
@@ -107,6 +110,10 @@ const mod = () => {
     createRigidbody,
     createConvexHullPhysicsShape,
     addGround,
+    initDebug,
+    createConvexHullPhysicsShape,
+    getTransformAux: () => transformAux,
+    getBoxShaper: (sx, sy, sz) => new ammo.btBoxShape(new ammo.btVector3(sx * 0.5, sy * 0.5, sz * 0.5)),
   };
 };
 const AmmoHelper = mod();

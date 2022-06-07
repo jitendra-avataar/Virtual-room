@@ -142,7 +142,7 @@ const mod = () => {
   };
 
   const getBoxHelper = (object) => {
-    return new THREE.BoxHelper(object, 0x0000ff);
+    return new THREE.BoxHelper(object, 0x00ffff);
   };
 
   const addTransparentBox = (dimension) => {
